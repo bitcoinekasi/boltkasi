@@ -1,0 +1,49 @@
+{
+  "name": "boltcard-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"tsx watch src/server/index.ts\" \"vite --config src/frontend/vite.config.ts\"",
+    "build": "vite build --config src/frontend/vite.config.ts && tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
+    "setup-admin": "tsx src/server/scripts/setup-admin.ts"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.2.1",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.6.0",
+    "bolt11": "^1.4.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "graphql": "^16.9.0",
+    "graphql-request": "^7.1.0",
+    "graphql-ws": "^5.16.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.1",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.16.1",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.4",
+    "@types/react-dom": "^18.3.0",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.12",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}

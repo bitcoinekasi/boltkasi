@@ -1,0 +1,309 @@
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+
+function authHeaders() {
+  return { Authorization: `Bearer ${localStorage.getItem('admin_token')}` };
+}
+
+interface UserDetail {
+  id: number;
+  username: string;
+  display_name: string;
+  balance_sats: number;
+  magic_link_url: string;
+  ln_address_enabled: number;
+  card: {
+    id: number;
+    uid: string | null;
+    counter: number;
+    tx_max_sats: number;
+    day_max_sats: number;
+    day_spent_sats: number;
+    setup_token: string | null;
+    programmed_at: number | null;
+    enabled: number;
+  } | null;
+  transactions: {
+    id: number;
+    type: 'spend' | 'refill';
+    amount_sats: number;
+    description: string | null;
+    created_at: number;
+  }[];
+}
+
+export default function AdminUserDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [user, setUser] = useState<UserDetail | null>(null);
+  const [error, setError] = useState('');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditDesc, setCreditDesc] = useState('');
+  const [creditError, setCreditError] = useState('');
+  const [txMaxInput, setTxMaxInput] = useState('');
+  const [dayMaxInput, setDayMaxInput] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  async function load() {
+    const res = await fetch(`/api/admin/users/${id}`, { headers: authHeaders() });
+    if (!res.ok) { setError('User not found'); return; }
+    const data = await res.json();
+    setUser(data);
+    if (data.card) {
+      setTxMaxInput(String(data.card.tx_max_sats));
+      setDayMaxInput(String(data.card.day_max_sats));
+    }
+  }
+
+  useEffect(() => { load(); }, [id]);
+
+  async function createCard(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch(`/api/admin/users/${id}/card`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tx_max_sats: parseInt(txMaxInput) || 1000,
+        day_max_sats: parseInt(dayMaxInput) || 5000,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      alert(d.error);
+      return;
+    }
+    load();
+  }
+
+  async function credit(e: React.FormEvent) {
+    e.preventDefault();
+    setCreditError('');
+    const res = await fetch(`/api/admin/users/${id}/credit`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount_sats: parseInt(creditAmount), description: creditDesc || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setCreditError(data.error); return; }
+    setCreditAmount('');
+    setCreditDesc('');
+    load();
+  }
+
+  async function toggleCard(enable: boolean) {
+    const action = enable ? 'enable' : 'disable';
+    await fetch(`/api/admin/users/${id}/card/${action}`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    load();
+  }
+
+  async function reprogramCard() {
+    if (!confirm('This will generate new keys and invalidate the current card. Continue?')) return;
+    const res = await fetch(`/api/admin/users/${id}/card/reprogram`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
+  }
+
+  async function updateLimits(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch(`/api/admin/users/${id}/card/limits`, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tx_max_sats: parseInt(txMaxInput),
+        day_max_sats: parseInt(dayMaxInput),
+      }),
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.error); return; }
+    load();
+  }
+
+  function copyMagicLink() {
+    if (!user) return;
+    navigator.clipboard.writeText(user.magic_link_url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (error) return <div className="page error-text">{error}</div>;
+  if (!user) return <div className="page muted">Loading…</div>;
+
+  return (
+    <div className="page">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button className="btn-ghost" onClick={() => navigate('/admin')}>← Back</button>
+        <h1 style={{ fontSize: 20 }}>{user.display_name}</h1>
+        <code className="muted">@{user.username}</code>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        {/* Balance */}
+        <div className="card">
+          <p className="muted" style={{ marginBottom: 4 }}>Balance</p>
+          <p style={{ fontSize: 28, fontWeight: 700 }}>{user.balance_sats.toLocaleString()} <span className="muted" style={{ fontSize: 14 }}>sats</span></p>
+          <form onSubmit={credit} style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <input
+              style={{ width: 110 }}
+              type="number"
+              placeholder="sats"
+              value={creditAmount}
+              onChange={(e) => setCreditAmount(e.target.value)}
+              min="1"
+              required
+            />
+            <input
+              style={{ flex: 1, minWidth: 100 }}
+              placeholder="Note (optional)"
+              value={creditDesc}
+              onChange={(e) => setCreditDesc(e.target.value)}
+            />
+            <button type="submit" className="btn-primary">Credit</button>
+          </form>
+          {creditError && <p className="error-text" style={{ marginTop: 6 }}>{creditError}</p>}
+        </div>
+
+        {/* Magic link */}
+        <div className="card">
+          <p className="muted" style={{ marginBottom: 4 }}>User page (magic link)</p>
+          <code style={{ fontSize: 12, wordBreak: 'break-all', color: '#f7931a' }}>{user.magic_link_url}</code>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button className="btn-ghost" onClick={copyMagicLink} style={{ fontSize: 12 }}>
+              {copied ? 'Copied!' : 'Copy link'}
+            </button>
+            <a href={user.magic_link_url} target="_blank" rel="noreferrer">
+              <button className="btn-ghost" style={{ fontSize: 12 }}>Open →</button>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Card section */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 14 }}>BoltCard</h2>
+        {!user.card ? (
+          <form onSubmit={createCard}>
+            <p className="muted" style={{ marginBottom: 12 }}>No card assigned yet. Create one to generate a programming QR.</p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+              <div>
+                <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>TX max (sats)</label>
+                <input style={{ width: 120 }} type="number" value={txMaxInput} onChange={(e) => setTxMaxInput(e.target.value)} placeholder="1000" min="1" />
+              </div>
+              <div>
+                <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 12 }}>Day max (sats)</label>
+                <input style={{ width: 120 }} type="number" value={dayMaxInput} onChange={(e) => setDayMaxInput(e.target.value)} placeholder="5000" min="1" />
+              </div>
+            </div>
+            <button type="submit" className="btn-primary">Create Card</button>
+          </form>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              {/* QR / programming */}
+              <div>
+                {user.card.setup_token ? (
+                  <>
+                    <p className="muted" style={{ marginBottom: 8, fontSize: 13 }}>Scan with Boltcard Programmer app to program card:</p>
+                    <img
+                      src={`/api/admin/users/${id}/card/qr`}
+                      alt="Programming QR"
+                      style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
+                    />
+                    <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>QR is single-use and expires after scanning.</p>
+                  </>
+                ) : (
+                  <div style={{ padding: '16px 0' }}>
+                    <span className="badge badge-green" style={{ marginBottom: 8 }}>Programmed</span>
+                    {user.card.uid && (
+                      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                        UID: <code>{user.card.uid}</code>
+                      </p>
+                    )}
+                    <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      Programmed: {new Date(user.card.programmed_at! * 1000).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Card info */}
+              <div style={{ flex: 1 }}>
+                <table style={{ marginBottom: 12 }}>
+                  <tbody>
+                    <tr><td className="muted" style={{ paddingLeft: 0 }}>Status</td><td>{user.card.enabled ? <span className="badge badge-green">Enabled</span> : <span className="badge badge-red">Disabled</span>}</td></tr>
+                    <tr><td className="muted" style={{ paddingLeft: 0 }}>Day spent</td><td>{user.card.day_spent_sats.toLocaleString()} sats</td></tr>
+                    <tr><td className="muted" style={{ paddingLeft: 0 }}>Counter</td><td>{user.card.counter === -1 ? 'Never tapped' : user.card.counter}</td></tr>
+                  </tbody>
+                </table>
+
+                {/* Limits form */}
+                <form onSubmit={updateLimits} style={{ marginBottom: 12 }}>
+                  <p className="muted" style={{ marginBottom: 6, fontSize: 12 }}>Spending limits</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div>
+                      <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 11 }}>TX max (sats)</label>
+                      <input style={{ width: 110 }} type="number" value={txMaxInput} onChange={(e) => setTxMaxInput(e.target.value)} min="1" required />
+                    </div>
+                    <div>
+                      <label className="muted" style={{ display: 'block', marginBottom: 4, fontSize: 11 }}>Day max (sats)</label>
+                      <input style={{ width: 110 }} type="number" value={dayMaxInput} onChange={(e) => setDayMaxInput(e.target.value)} min="1" required />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button type="submit" className="btn-ghost" style={{ fontSize: 12 }}>Save limits</button>
+                    </div>
+                  </div>
+                </form>
+
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {user.card.enabled ? (
+                    <button className="btn-danger" onClick={() => toggleCard(false)}>Disable Card</button>
+                  ) : (
+                    <button className="btn-primary" onClick={() => toggleCard(true)}>Enable Card</button>
+                  )}
+                  <button className="btn-ghost" onClick={reprogramCard} style={{ fontSize: 12 }}>Reprogram</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Transaction history */}
+      <div className="card">
+        <h2 style={{ fontSize: 16, marginBottom: 12 }}>Transactions ({user.transactions.length})</h2>
+        {user.transactions.length === 0 ? (
+          <p className="muted">No transactions yet.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Description</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {user.transactions.map((tx) => (
+                <tr key={tx.id}>
+                  <td>
+                    <span className={`badge ${tx.type === 'refill' ? 'badge-green' : 'badge-red'}`}>
+                      {tx.type === 'refill' ? '↓ refill' : '↑ spend'}
+                    </span>
+                  </td>
+                  <td>{tx.amount_sats.toLocaleString()} sats</td>
+                  <td className="muted">{tx.description ?? '—'}</td>
+                  <td className="muted">{new Date(tx.created_at * 1000).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
