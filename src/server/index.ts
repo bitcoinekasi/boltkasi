@@ -79,7 +79,6 @@ app.use(cors());
 app.use(express.json());
 
 // Protocol routes (no /api prefix — LNURL spec requires bare paths)
-app.use('/lnurlw/callback', lnurlwRoutes);  // must register callback before base
 app.use('/lnurlw', lnurlwRoutes);
 app.use('/.well-known/lnurlp', lnurlpRoutes);
 app.use('/lnurlp', lnurlpRoutes);
