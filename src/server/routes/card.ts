@@ -18,31 +18,26 @@ interface CardRow {
 
 // ── GET /api/card/setup/:token ────────────────────────────────────────────────
 //
-// One-time programming endpoint consumed by the Boltcard Programmer app.
-// Returns card keys and clears the setup token atomically.
+// Programming endpoint consumed by the Boltcard Programmer app.
+// Returns card keys. Token stays valid so retries work if NFC write fails.
+// Token is only invalidated when Reprogram is called (generating new keys).
 
 router.get('/setup/:token', (req, res) => {
   const { token } = req.params;
   const DOMAIN = process.env.DOMAIN!;
 
-  let card: CardRow | undefined;
-
-  db.transaction(() => {
-    card = db
-      .prepare('SELECT * FROM cards WHERE setup_token = ?')
-      .get(token) as CardRow | undefined;
-
-    if (!card) return;
-
-    // Clear the setup token and mark as programmed
-    db.prepare(
-      'UPDATE cards SET setup_token = NULL, programmed_at = unixepoch() WHERE id = ?'
-    ).run(card.id);
-  })();
+  const card = db
+    .prepare('SELECT * FROM cards WHERE setup_token = ?')
+    .get(token) as CardRow | undefined;
 
   if (!card) {
     res.status(404).json({ error: 'Setup token not found or already used' });
     return;
+  }
+
+  // Mark as programmed on first fetch (idempotent)
+  if (!card.programmed_at) {
+    db.prepare('UPDATE cards SET programmed_at = unixepoch() WHERE id = ?').run(card.id);
   }
 
   res.json({
