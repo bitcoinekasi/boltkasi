@@ -91,7 +91,7 @@ app.use('/api/user', userRoutes);
 // ── Static frontend (production) ──────────────────────────────────────────────
 
 if (isProd) {
-  const distPath = path.join(__dirname, '../../public');
+  const distPath = path.join(__dirname, '../public');
   app.use(express.static(distPath));
   // SPA fallback — serve index.html for all non-API routes
   app.get(/^(?!\/api|\/lnurlw|\/lnurlp|\/.well-known).*/, (_req, res) => {
