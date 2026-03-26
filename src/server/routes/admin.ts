@@ -163,11 +163,9 @@ router.get('/users/:id/card/qr', async (req, res) => {
   }
 
   const proto = DOMAIN().startsWith('localhost') ? 'http' : 'https';
-  const deepLink = `boltcard://program?url=${encodeURIComponent(
-    `${proto}://${DOMAIN()}/api/card/setup/${card.setup_token}`
-  )}`;
+  const setupUrl = `${proto}://${DOMAIN()}/api/card/setup/${card.setup_token}`;
 
-  const qrPng = await QRCode.toBuffer(deepLink, { type: 'png', width: 400 });
+  const qrPng = await QRCode.toBuffer(setupUrl, { type: 'png', width: 400 });
   res.set('Content-Type', 'image/png');
   res.send(qrPng);
 });

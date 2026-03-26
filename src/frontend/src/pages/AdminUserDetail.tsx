@@ -225,7 +225,14 @@ export default function AdminUserDetail() {
                         style={{ width: 200, height: 200, display: 'block', borderRadius: 8 }}
                       />
                     )}
-                    <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>QR is single-use and expires after scanning.</p>
+                    <p className="muted" style={{ marginTop: 6, marginBottom: 8, fontSize: 12 }}>QR is single-use. On mobile, tap below instead:</p>
+                    <a
+                      href={`boltcard://program?url=${encodeURIComponent(`${window.location.origin}/api/card/setup/${user.card.setup_token}`)}`}
+                      className="btn-ghost"
+                      style={{ display: 'inline-block', fontSize: 12, padding: '6px 12px' }}
+                    >
+                      Open in Programmer App
+                    </a>
                   </>
                 ) : (
                   <div style={{ padding: '16px 0' }}>
