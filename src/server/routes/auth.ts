@@ -41,4 +41,32 @@ router.get('/me', requireAdmin, (req: AdminRequest, res) => {
   res.json(admin);
 });
 
+router.post('/change-password', requireAdmin, (req: AdminRequest, res) => {
+  const { current_password, new_password } = req.body as {
+    current_password?: string;
+    new_password?: string;
+  };
+  if (!current_password || !new_password) {
+    res.status(400).json({ error: 'current_password and new_password required' });
+    return;
+  }
+  if (new_password.length < 8) {
+    res.status(400).json({ error: 'new_password must be at least 8 characters' });
+    return;
+  }
+
+  const admin = db
+    .prepare('SELECT * FROM admins WHERE id = ?')
+    .get(req.adminId) as { id: number; password_hash: string } | undefined;
+
+  if (!admin || !bcrypt.compareSync(current_password, admin.password_hash)) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const newHash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(newHash, admin.id);
+  res.json({ success: true });
+});
+
 export default router;

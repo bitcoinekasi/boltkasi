@@ -23,6 +23,11 @@ export default function AdminDashboard() {
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [createError, setCreateError] = useState('');
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [changePwError, setChangePwError] = useState('');
+  const [changePwSuccess, setChangePwSuccess] = useState(false);
 
   async function load() {
     const res = await fetch('/api/admin/dashboard', { headers: authHeaders() });
@@ -54,6 +59,22 @@ export default function AdminDashboard() {
     navigate('/admin/login');
   }
 
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setChangePwError('');
+    setChangePwSuccess(false);
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setChangePwError(data.error); return; }
+    setChangePwSuccess(true);
+    setCurrentPw('');
+    setNewPw('');
+  }
+
   function cardStatus(row: UserRow) {
     if (!row.card_id) return <span className="badge badge-gray">No card</span>;
     if (!row.programmed_at) return <span className="badge badge-yellow">Unprogrammed</span>;
@@ -69,9 +90,39 @@ export default function AdminDashboard() {
           {systemBalance !== null && (
             <span className="muted">Blink balance: <strong style={{ color: '#f0f0f0' }}>{systemBalance.toLocaleString()} sats</strong></span>
           )}
+          <button className="btn-ghost" onClick={() => setShowChangePw(!showChangePw)} style={{ fontSize: 12 }}>Change password</button>
           <button className="btn-ghost" onClick={logout}>Logout</button>
         </div>
       </div>
+
+      {showChangePw && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 12, fontSize: 15 }}>Change Password</h3>
+          <form onSubmit={changePassword} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input
+              type="password"
+              style={{ flex: '1 1 160px' }}
+              placeholder="Current password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              style={{ flex: '1 1 160px' }}
+              placeholder="New password (min 8 chars)"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              minLength={8}
+              required
+            />
+            <button type="submit" className="btn-primary">Update</button>
+            <button type="button" className="btn-ghost" onClick={() => setShowChangePw(false)}>Cancel</button>
+          </form>
+          {changePwError && <p className="error-text" style={{ marginTop: 8 }}>{changePwError}</p>}
+          {changePwSuccess && <p style={{ color: '#68d391', marginTop: 8, fontSize: 13 }}>Password updated successfully.</p>}
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16 }}>Users ({users.length})</h2>
